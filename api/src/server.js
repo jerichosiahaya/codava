@@ -1,10 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const fastify_1 = require("fastify");
+const rate_limit_1 = require("@fastify/rate-limit");
+const zod_1 = require("zod");
 const crypto = require("crypto");
 const db_1 = require("./db");
 const oauth_1 = require("./oauth");
 const app = (0, fastify_1.default)({ logger: true });
+const HeartbeatSchema = zod_1.z.object({
+    ts: zod_1.z.string().datetime(),
+    language: zod_1.z.string().min(1).max(64),
+    project: zod_1.z.string().min(1).max(128),
+    file: zod_1.z.string().min(1).max(256),
+    is_write: zod_1.z.boolean().optional(),
+});
+const HeartbeatBatchSchema = zod_1.z.object({
+    heartbeats: zod_1.z.array(HeartbeatSchema).min(1).max(500),
+});
+const TS_PAST_WINDOW_MS = 10 * 60 * 1000;
+const TS_FUTURE_WINDOW_MS = 60 * 1000;
 const oauthStates = new Map();
 function rememberState(s) {
     oauthStates.set(s, Date.now());
@@ -18,6 +32,13 @@ function consumeState(s) {
     oauthStates.delete(s);
     return true;
 }
+app.register(rate_limit_1.default, {
+    global: false,
+    keyGenerator: (req) => {
+        const u = req.user;
+        return u ? `u:${u.id}` : `ip:${req.ip}`;
+    },
+});
 app.addHook('onRequest', async (req, reply) => {
     if (req.url === '/health')
         return;
@@ -35,19 +56,30 @@ app.addHook('onRequest', async (req, reply) => {
     req.user = user;
 });
 app.get('/health', async () => ({ ok: true }));
-app.post('/heartbeats', async (req, reply) => {
+app.post('/heartbeats', { config: { rateLimit: { max: 200, timeWindow: '1 minute' } } }, async (req, reply) => {
     const user = req.user;
-    const body = req.body;
-    const beats = body?.heartbeats ?? [];
-    if (!Array.isArray(beats) || beats.length === 0)
-        return { accepted: 0 };
-    if (beats.length > 1000)
-        return reply.code(413).send({ error: 'too_many' });
+    const parsed = HeartbeatBatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.issues });
+    }
+    const now = Date.now();
+    const accepted = [];
+    let rejected = 0;
+    for (const b of parsed.data.heartbeats) {
+        const t = Date.parse(b.ts);
+        if (now - t > TS_PAST_WINDOW_MS || t - now > TS_FUTURE_WINDOW_MS) {
+            rejected += 1;
+            continue;
+        }
+        accepted.push(b);
+    }
+    if (accepted.length === 0)
+        return { accepted: 0, rejected };
     const client = await db_1.pool.connect();
     try {
         await client.query('BEGIN');
-        for (const b of beats) {
-            await client.query('INSERT INTO heartbeats (user_id, ts, language, project, file, is_write) VALUES ($1, $2, $3, $4, $5, $6)', [user.id, b.ts, b.language ?? 'unknown', b.project ?? 'unknown', b.file ?? 'unknown', b.is_write ?? false]);
+        for (const b of accepted) {
+            await client.query('INSERT INTO heartbeats (user_id, ts, language, project, file, is_write) VALUES ($1, $2, $3, $4, $5, $6)', [user.id, b.ts, b.language, b.project, b.file, b.is_write ?? false]);
         }
         await client.query('COMMIT');
     }
@@ -58,7 +90,12 @@ app.post('/heartbeats', async (req, reply) => {
     finally {
         client.release();
     }
-    return { accepted: beats.length };
+    return { accepted: accepted.length, rejected };
+});
+app.delete('/me', async (req, reply) => {
+    const user = req.user;
+    await db_1.pool.query('DELETE FROM users WHERE id = $1', [user.id]);
+    return reply.code(200).send({ deleted: true });
 });
 app.get('/me/stats/today', async (req) => {
     const user = req.user;

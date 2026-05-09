@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: codava-api
+    runtime: node
+    plan: free
+    rootDir: api
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: WEB_URL
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false

@@ -9,9 +9,11 @@
     "dev": "tsc -p . && node -r dotenv/config out/server.js"
   },
   "dependencies": {
+    "@fastify/rate-limit": "^9.1.0",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

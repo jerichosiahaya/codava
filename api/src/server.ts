@@ -1,9 +1,25 @@
 import Fastify from 'fastify';
+import rateLimit from '@fastify/rate-limit';
+import { z } from 'zod';
 import * as crypto from 'crypto';
 import { pool, authenticate } from './db';
 import { loadConfig, authorizeUrl, exchangeCode, fetchGithubUser, upsertUser } from './oauth';
 
 const app = Fastify({ logger: true });
+
+const HeartbeatSchema = z.object({
+  ts: z.string().datetime(),
+  language: z.string().min(1).max(64),
+  project: z.string().min(1).max(128),
+  file: z.string().min(1).max(256),
+  is_write: z.boolean().optional(),
+});
+const HeartbeatBatchSchema = z.object({
+  heartbeats: z.array(HeartbeatSchema).min(1).max(500),
+});
+
+const TS_PAST_WINDOW_MS = 10 * 60 * 1000;
+const TS_FUTURE_WINDOW_MS = 60 * 1000;
 
 const oauthStates = new Map<string, number>();
 function rememberState(s: string): void {
@@ -16,13 +32,13 @@ function consumeState(s: string): boolean {
   return true;
 }
 
-interface HeartbeatIn {
-  ts: string;
-  language: string;
-  project: string;
-  file: string;
-  is_write?: boolean;
-}
+app.register(rateLimit, {
+  global: false,
+  keyGenerator: (req) => {
+    const u = (req as any).user as { id: number } | undefined;
+    return u ? `u:${u.id}` : `ip:${req.ip}`;
+  },
+});
 
 app.addHook('onRequest', async (req, reply) => {
   if (req.url === '/health') return;
@@ -38,30 +54,53 @@ app.addHook('onRequest', async (req, reply) => {
 
 app.get('/health', async () => ({ ok: true }));
 
-app.post('/heartbeats', async (req, reply) => {
-  const user = (req as any).user as { id: number };
-  const body = req.body as { heartbeats?: HeartbeatIn[] };
-  const beats = body?.heartbeats ?? [];
-  if (!Array.isArray(beats) || beats.length === 0) return { accepted: 0 };
-  if (beats.length > 1000) return reply.code(413).send({ error: 'too_many' });
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    for (const b of beats) {
-      await client.query(
-        'INSERT INTO heartbeats (user_id, ts, language, project, file, is_write) VALUES ($1, $2, $3, $4, $5, $6)',
-        [user.id, b.ts, b.language ?? 'unknown', b.project ?? 'unknown', b.file ?? 'unknown', b.is_write ?? false],
-      );
+app.post(
+  '/heartbeats',
+  { config: { rateLimit: { max: 200, timeWindow: '1 minute' } } },
+  async (req, reply) => {
+    const user = (req as any).user as { id: number };
+    const parsed = HeartbeatBatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.issues });
     }
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-  return { accepted: beats.length };
+
+    const now = Date.now();
+    const accepted: typeof parsed.data.heartbeats = [];
+    let rejected = 0;
+    for (const b of parsed.data.heartbeats) {
+      const t = Date.parse(b.ts);
+      if (now - t > TS_PAST_WINDOW_MS || t - now > TS_FUTURE_WINDOW_MS) {
+        rejected += 1;
+        continue;
+      }
+      accepted.push(b);
+    }
+    if (accepted.length === 0) return { accepted: 0, rejected };
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const b of accepted) {
+        await client.query(
+          'INSERT INTO heartbeats (user_id, ts, language, project, file, is_write) VALUES ($1, $2, $3, $4, $5, $6)',
+          [user.id, b.ts, b.language, b.project, b.file, b.is_write ?? false],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    return { accepted: accepted.length, rejected };
+  },
+);
+
+app.delete('/me', async (req, reply) => {
+  const user = (req as any).user as { id: number };
+  await pool.query('DELETE FROM users WHERE id = $1', [user.id]);
+  return reply.code(200).send({ deleted: true });
 });
 
 app.get('/me/stats/today', async (req) => {

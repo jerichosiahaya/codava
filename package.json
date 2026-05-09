@@ -1,0 +1,54 @@
+{
+  "name": "codava",
+  "displayName": "Codava",
+  "description": "Strava for coders — track your coding time, languages, and projects.",
+  "version": "0.0.1",
+  "publisher": "codava",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "main": "./out/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codava.showStats",
+        "title": "Codava: Show Today's Stats"
+      },
+      {
+        "command": "codava.showAllTime",
+        "title": "Codava: Show All-Time Stats"
+      },
+      {
+        "command": "codava.flushNow",
+        "title": "Codava: Sync Now"
+      }
+    ],
+    "configuration": {
+      "title": "Codava",
+      "properties": {
+        "codava.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:4000",
+          "description": "Base URL of the Codava API."
+        },
+        "codava.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for the Codava API. Leave empty to disable cloud sync."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

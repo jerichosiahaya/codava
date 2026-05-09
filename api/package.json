@@ -1,0 +1,20 @@
+{
+  "name": "codava-api",
+  "version": "0.0.1",
+  "private": true,
+  "main": "out/server.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "node out/server.js",
+    "dev": "tsc -p . && node out/server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.3.0"
+  }
+}

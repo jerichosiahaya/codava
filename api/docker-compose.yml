@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: codava-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: codava
+      POSTGRES_PASSWORD: codava
+      POSTGRES_DB: codava
+    ports:
+      - "5432:5432"
+    volumes:
+      - codava-pgdata:/var/lib/postgresql/data
+      - ./src/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+volumes:
+  codava-pgdata:

@@ -15,28 +15,60 @@
 
 ## Architecture
 
+Monorepo with three independent npm projects under one root:
+
 ```
-src/
-  extension.ts   — activation, status bar, command registration
-  tracker.ts     — event hooks + idle/focus-aware sampler
-  storage.ts     — JSON persistence, day-bucketed aggregation
-  stats.ts       — HTML rendering for webview panels
+codava/
+  src/                 — VS Code extension (TypeScript)
+    extension.ts       — activation, status bar, command registration
+    tracker.ts         — event hooks + idle/focus-aware sampler
+    storage.ts         — local JSON persistence (day-bucketed)
+    sync.ts            — batches heartbeats, POSTs to API every 60s, queues offline
+    stats.ts           — HTML for in-editor webview panels
+  package.json         — extension manifest
+
+  api/                 — Backend (Fastify + Postgres)
+    src/
+      server.ts        — routes, API-key auth hook
+      db.ts            — pg pool + auth helper
+      schema.sql       — DB schema + dev seed user
+    docker-compose.yml — local Postgres (port 5432)
+    package.json
+
+  web/                 — Dashboard (Next.js 14, App Router)
+    app/
+      page.tsx         — personal dashboard at /
+      u/[username]/    — public profile at /u/:username
+      Heatmap.tsx      — 6-month calendar grid
+      lib.ts           — server-side API fetchers
+    package.json
 ```
 
-No backend, no auth, no network calls. All data stays on disk.
+Each subfolder has its own `node_modules` and `package.json` — install/build from inside each.
 
 ## Build & run
 
-```
-npm install
-npm run compile
+Three services, each from its own folder:
+
+```bash
+# Extension (root)
+npm install && npm run compile     # then F5 in VS Code
+
+# API (codava/api)
+docker compose up -d               # Postgres on :5432
+npm install && npm run build && npm start   # API on :4000
+
+# Web (codava/web)
+npm install && npm run dev         # dashboard on :3000
 ```
 
-Press `F5` in VS Code to launch the Extension Development Host.
+Dev API key (seeded in `api/src/schema.sql`): `dev-key-jericho-change-me`.
+Set it in VS Code settings under `codava.apiKey` to enable cloud sync.
 
-Commands:
+Commands (extension):
 - `Codava: Show Today's Stats`
 - `Codava: Show All-Time Stats`
+- `Codava: Sync Now`
 
 ## Future work (not in MVP)
 

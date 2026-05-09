@@ -1,7 +1,20 @@
 import Fastify from 'fastify';
+import * as crypto from 'crypto';
 import { pool, authenticate } from './db';
+import { loadConfig, authorizeUrl, exchangeCode, fetchGithubUser, upsertUser } from './oauth';
 
 const app = Fastify({ logger: true });
+
+const oauthStates = new Map<string, number>();
+function rememberState(s: string): void {
+  oauthStates.set(s, Date.now());
+  for (const [k, t] of oauthStates) if (Date.now() - t > 10 * 60 * 1000) oauthStates.delete(k);
+}
+function consumeState(s: string): boolean {
+  if (!oauthStates.has(s)) return false;
+  oauthStates.delete(s);
+  return true;
+}
 
 interface HeartbeatIn {
   ts: string;
@@ -14,6 +27,7 @@ interface HeartbeatIn {
 app.addHook('onRequest', async (req, reply) => {
   if (req.url === '/health') return;
   if (req.url.startsWith('/u/')) return;
+  if (req.url.startsWith('/auth/')) return;
   const header = req.headers['authorization'];
   const key = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!key) return reply.code(401).send({ error: 'missing_api_key' });
@@ -152,6 +166,34 @@ app.get<{ Params: { username: string } }>('/u/:username', async (req, reply) => 
     by_language: byLang.rows.map((r) => ({ language: r.language, seconds: Number(r.seconds) })),
     days: days.rows.map((r) => ({ day: r.day, seconds: Number(r.seconds) })),
   };
+});
+
+app.get('/auth/github/start', async (_req, reply) => {
+  const cfg = loadConfig();
+  if (!cfg) return reply.code(500).send({ error: 'oauth_not_configured' });
+  const state = crypto.randomBytes(16).toString('hex');
+  rememberState(state);
+  return reply.redirect(authorizeUrl(cfg, state));
+});
+
+app.get<{ Querystring: { code?: string; state?: string } }>('/auth/github/callback', async (req, reply) => {
+  const cfg = loadConfig();
+  if (!cfg) return reply.code(500).send({ error: 'oauth_not_configured' });
+  const { code, state } = req.query;
+  if (!code || !state) return reply.code(400).send({ error: 'missing_params' });
+  if (!consumeState(state)) return reply.code(400).send({ error: 'invalid_state' });
+  try {
+    const token = await exchangeCode(cfg, code);
+    const gh = await fetchGithubUser(token);
+    const user = await upsertUser(gh);
+    const dest = new URL('/auth/cb', cfg.webUrl);
+    dest.searchParams.set('key', user.api_key);
+    dest.searchParams.set('username', user.username);
+    return reply.redirect(dest.toString());
+  } catch (e) {
+    app.log.error(e);
+    return reply.code(500).send({ error: 'oauth_failed' });
+  }
 });
 
 const port = Number(process.env.PORT ?? 4000);

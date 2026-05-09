@@ -23,11 +23,16 @@ export async function fetchPublicProfile(username: string): Promise<PublicProfil
   return res.json();
 }
 
-export async function fetchSummary(): Promise<Summary> {
-  const url = process.env.CODAVA_API_URL ?? 'http://localhost:4000';
-  const key = process.env.CODAVA_API_KEY ?? '';
-  const res = await fetch(`${url}/me/stats/summary`, {
-    headers: { Authorization: `Bearer ${key}` },
+export const SESSION_COOKIE = 'codava_key';
+export const USERNAME_COOKIE = 'codava_user';
+
+export function apiBase(): string {
+  return process.env.CODAVA_API_URL ?? 'http://localhost:4000';
+}
+
+export async function fetchSummary(apiKey: string): Promise<Summary> {
+  const res = await fetch(`${apiBase()}/me/stats/summary`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`api ${res.status}`);

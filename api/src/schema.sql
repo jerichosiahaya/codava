@@ -1,6 +1,8 @@
 CREATE TABLE IF NOT EXISTS users (
   id          BIGSERIAL PRIMARY KEY,
   username    TEXT UNIQUE NOT NULL,
+  github_id   BIGINT UNIQUE,
+  avatar_url  TEXT,
   api_key     TEXT UNIQUE NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -26,7 +28,3 @@ CREATE TABLE IF NOT EXISTS daily_summaries (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, day)
 );
-
-INSERT INTO users (username, api_key)
-VALUES ('jericho', 'dev-key-jericho-change-me')
-ON CONFLICT (username) DO NOTHING;

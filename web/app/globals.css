@@ -26,3 +26,8 @@ h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; color: #9da7b3; font-weight: 500
 .heatmap .l3 { background: #b1471f; }
 .heatmap .l4 { background: #fc4c02; }
 .empty { color: #9da7b3; font-style: italic; }
+.empty a { color: #fc4c02; text-decoration: none; font-style: normal; }
+.empty a:hover { text-decoration: underline; }
+.button { display: inline-block; background: #fc4c02; color: #fff; padding: 0.75rem 1.25rem; border-radius: 6px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; font-size: 1rem; }
+.button:hover { background: #e34502; }
+.api-key { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 0.75rem 1rem; font-family: ui-monospace, Menlo, monospace; font-size: 0.9rem; word-break: break-all; }

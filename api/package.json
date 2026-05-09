@@ -5,10 +5,11 @@
   "main": "out/server.js",
   "scripts": {
     "build": "tsc -p .",
-    "start": "node out/server.js",
-    "dev": "tsc -p . && node out/server.js"
+    "start": "node -r dotenv/config out/server.js",
+    "dev": "tsc -p . && node -r dotenv/config out/server.js"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
     "pg": "^8.13.1"
   },

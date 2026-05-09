@@ -62,8 +62,14 @@ npm install && npm run build && npm start   # API on :4000
 npm install && npm run dev         # dashboard on :3000
 ```
 
-Dev API key (seeded in `api/src/schema.sql`): `dev-key-jericho-change-me`.
-Set it in VS Code settings under `codava.apiKey` to enable cloud sync.
+### GitHub OAuth setup (one-time)
+
+1. Go to https://github.com/settings/developers → **New OAuth App**
+2. Homepage URL: `http://localhost:3000`
+3. Authorization callback URL: `http://localhost:4000/auth/github/callback`
+4. Generate a client secret
+5. Copy `api/.env.example` to `api/.env` and fill in `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
+6. Restart the API. Visit `http://localhost:3000` → "Sign in with GitHub" → land on `/me` page → copy your API key into VS Code settings (`codava.apiKey`).
 
 Commands (extension):
 - `Codava: Show Today's Stats`

@@ -1,12 +1,18 @@
-import { fetchSummary, formatDuration } from './lib';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { fetchSummary, formatDuration, SESSION_COOKIE } from './lib';
 import { Heatmap } from './Heatmap';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Page() {
+  const apiKey = cookies().get(SESSION_COOKIE)?.value;
+  if (!apiKey) redirect('/signin');
+
   let data;
   try {
-    data = await fetchSummary();
+    data = await fetchSummary(apiKey);
   } catch (e) {
     return (
       <div className="container">
@@ -24,7 +30,9 @@ export default async function Page() {
       <h1>
         <span className="handle">@{data.username}</span>
       </h1>
-      <p className="empty">Strava for coders — your coding activity at a glance.</p>
+      <p className="empty">
+        <Link href={`/u/${data.username}`}>Public profile</Link> · <Link href="/me">Settings & API key</Link>
+      </p>
 
       <div className="stats">
         <div className="stat">

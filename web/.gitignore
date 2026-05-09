@@ -2,3 +2,7 @@ node_modules/
 .next/
 .env.local
 out/
+
+# Stray TypeScript output — source is .tsx/.ts only
+app/**/*.js
+app/**/*.js.map

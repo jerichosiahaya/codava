@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { SESSION_COOKIE, USERNAME_COOKIE } from '../lib';
-import { signOut } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +24,7 @@ export default function Me() {
       <div className="api-key">{apiKey}</div>
 
       <h2>Sign out</h2>
-      <form action={signOut}>
+      <form action="/auth/signout" method="post">
         <button className="button" type="submit">Sign out</button>
       </form>
     </div>
